@@ -1,0 +1,332 @@
+---
+title: "Exam2_TimeSeries"
+author: "Gabriel Tellez"
+date: "May 2, 2018"
+output: word_document
+---
+
+```{r}
+library("MTS")
+library("forecast")
+library("tseries")
+```
+
+
+### Read the data sets
+```{r}
+# read time series data set without seasonality
+earthquake = read.csv("earthquakes_per_year.csv")
+# remove last row (unnecessary text)
+earthquake = earthquake[-c(100), ]
+# rename column
+names(earthquake)[2] = "Earthquakes"
+# remove Year column
+earthquake$Year = NULL
+summary(earthquake)
+  
+```
+
+### Plot time series
+```{r}
+# read data to time series object
+earthquake.ts = ts(earthquake, start = c(1900,1))
+#earthquake.ts
+# plot time series data
+plot.ts(earthquake.ts, main = "Earthquakes of Mag > 7.0 between 1900 - 1998 in the US")
+```
+
+### Plot ACF for time series data sets
+```{r}
+# plot ACF for non-seasonality data set
+acf(earthquake.ts, main = "ACF - Earthquakes")
+
+```
+
+### Use KPSS and ADF root tests to check for constant mean or not
+```{r}
+# KPSS test to see if it suggests a constant mean or not
+kpss.test(earthquake.ts, null = "Trend")
+# p-value = 0.01 < 0.05 means reject null hypothesis that the data is stationary, so data is non-stationary
+```
+```{r}
+# ADF test to confirm KPSS evaluation
+adf.test(earthquake.ts)
+# ADF null is data is non stationary
+# reject null if p-value < 0.05
+# p-value = 0.08583 > 0.05 so data is not stationary
+```
+
+### Differencing
+a.	Plot out the data for the new differenced data set.  Tell me if it looks like the differencing got rid of the trend or non-constant mean.
+b.	Plot the ACF for the differenced time series.  Tell me if this new ACF plot looks like there now is no trend.
+c.	Apply the KPSS test and the ADF or ADF-GLS test to the differenced data - does the trend disappear?
+
+```{r}
+# estimating number of differences to make time series stationary
+# test = "kpss" returned 0 differences so tried "adf"
+earthquake.diff.est = ndiffs(earthquake.ts, alpha = 0.05, test = "adf")
+earthquake.diff.est
+# 1 estimated number of differences returned
+```
+```{r}
+#par(mfrow = c(2,1))
+# plotting new differenced data set
+earthquake.diff = diff(earthquake.ts, differences = 1)
+plot.ts(earthquake.diff, main = "Earthquake Data Differenced = 1")
+#earthquake.diff2 = diff(earthquake.ts, differences = 1)
+#plot.ts(earthquake.diff2, main = "Earthquake Data Differenced = 2")
+
+```
+
+```{r}
+# plotting ACF for differenced earthquake time series
+acf(earthquake.diff, main = "ACF - Earthquakes Differenced = 1")
+```
+
+KPSS and ADF tests on differenced data
+```{r}
+kpss.test(earthquake.diff, null = "Trend")
+# p-value is greater than 0.1 
+# keep the null hypothesis of the KPSS test: stationary data
+```
+```{r}
+adf.test(earthquake.diff)
+# p-value is smaller than 0.01
+# Reject the ADF null hypothesis that data is non-stationary, data is stationary
+```
+
+### Test for constant variance using ARCH Test
+```{r}
+archTest(earthquake.diff)
+# p-value 0.79 is non-significant which means the differenced data has constant variance
+```
+
+### PACF
+7.	Plot the PACF for the time series data sets.  Using the combined information from the ACF you plotted earlier along with the information in the PACF, tell me if you see autoregressive and/or moving average processes in the data set.  To help with interpretation you may want to refer to online resources - here is a decent resource from Duke University https://people.duke.edu/~rnau/411arim3.htm  or  Penn State https://onlinecourses.science.psu.edu/stat510/node/64
+
+```{r}
+par(mfrow=c(1,2))
+acf(earthquake.diff)
+pacf(earthquake.diff)
+```
+From the ACF plot, the sharp cutoff after lag 1 points to a MA(1) process since the sharp decrease is after the first lag. From the PACF plot, it looks like a gradual decrease so no AR processes.
+```{r}
+# use auto.arima to find optimal non-seasonal model
+earthquake.optimal = auto.arima(earthquake.diff, seasonal = FALSE)
+earthquake.optimal
+Box.test(earthquake.optimal$residuals, type = "Ljung-Box")
+```
+
+### Experimenting with different ARIMA models
+```{r}
+# auto.arima suggest (0,0,1) on differenced time series
+# ACF and PACF interpretation (0,1,1)
+# (1,1,1)
+# (2,1,1)
+
+# to compare models, will use the following metrics:
+# AIC, BIC, Ljung-Box
+```
+
+```{r}
+earthquake.arima1 = Arima(earthquake.diff, order = c(0,0,1))
+earthquake.arima1
+Box.test(earthquake.arima1$residuals, type = "Ljung-Box")
+```
+Plot the Observed vs Fitted
+```{r}
+fit = auto.arima(earthquake.diff, seasonal = FALSE)
+plot(fit$x, col = "blue", main = "Observed vs. Fitted")
+lines(fitted(fit), col = "red")
+```
+
+```{r}
+fit2 = HoltWinters(earthquake.diff, gamma = FALSE)
+plot(fit2)
+```
+
+Forecasting ARIMA(0,0,1)
+```{r}
+earthquake.forecast = forecast(auto.arima(earthquake.diff), h = 6)
+plot(earthquake.forecast)
+```
+
+#######################################################
+#######################################################
+#######################################################
+Data with seasonality
+```{r}
+google = read.csv("GOOGL_2006-01-01_to_2018-01-01.csv")
+# remove columns
+google$Date = NULL
+google$Open = NULL
+google$High = NULL
+google$Low = NULL
+google$Volume = NULL
+google$Name = NULL
+summary(google)
+
+```
+
+```{r}
+# plot time series data of Google
+# read data to time series object
+google.ts = ts(google, start = c(217.83,1))
+# plot time series data
+plot.ts(google.ts, main = "Google Closing in last 13 years")
+```
+
+```{r}
+san.antonio = read.csv("temperature.csv")
+san.antonio$Vancouver = NULL
+san.antonio$Portland = NULL
+san.antonio$San.Francisco = NULL
+san.antonio$Seattle = NULL
+san.antonio$Los.Angeles = NULL
+san.antonio$San.Diego = NULL
+san.antonio$Las.Vegas = NULL
+san.antonio$Phoenix = NULL
+san.antonio$Albuquerque = NULL
+san.antonio$Denver= NULL
+san.antonio$Dallas = NULL
+san.antonio$Houston = NULL
+san.antonio$Kansas.City = NULL
+san.antonio$Minneapolis = NULL
+san.antonio$Saint.Louis = NULL
+san.antonio$Chicago = NULL
+san.antonio$Nashville = NULL
+san.antonio$Indianapolis = NULL
+san.antonio$Atlanta = NULL
+san.antonio$Detroit = NULL
+san.antonio$Jacksonville = NULL
+san.antonio$Charlotte = NULL
+san.antonio$Miami = NULL
+san.antonio$Pittsburgh = NULL
+san.antonio$Toronto = NULL
+san.antonio$Philadelphia = NULL
+san.antonio$New.York = NULL
+san.antonio$Montreal = NULL
+san.antonio$Boston = NULL
+san.antonio$Beersheba = NULL
+san.antonio$Tel.Aviv.District = NULL
+san.antonio$Eilat = NULL
+san.antonio$Haifa = NULL
+san.antonio$Nahariyya = NULL
+san.antonio$Jerusalem = NULL
+# removing rows 1 - 2196 for 2012
+# this guarantees data start 01/01/2013
+san.antonio = san.antonio[-c(1:2196), ]
+# removing datetime column
+san.antonio$datetime = NULL
+# rename San.Antonio column
+# rename column
+names(san.antonio)[1] = "Temperature (K)"
+summary(san.antonio)
+```
+
+```{r}
+# frequency = 24 hours/day * 365 days/year = 8760
+san.antonio.ts = ts(san.antonio, frequency = 8760, start = 2013)
+# plot time series data
+plot.ts(san.antonio.ts, main = "Temperature (K) in San Antonio 2012-2017")
+# 1825 days in 5 years
+```
+
+```{r}
+library("TSA")
+# periodogram
+p = periodogram(san.antonio.ts)
+
+a = data.frame(freq = p$freq, spec = p$spec)
+b = a[order(-a$spec),]
+top2 = head(b, 2)
+top2
+
+# convert frequency to time periods
+time = 1/top2$freq
+time
+```
+
+```{r}
+# convert san.antonio.ts to CSV file to open up in GRETL for periodogram
+# DID NOT USE
+write.csv(san.antonio, file = "san_antonio_temperature_2013_2017.csv")
+# DID NOT USE
+```
+
+
+
+Weights for the three components of Holt Winter Smoothing
+```{r}
+# ETS function has 24 frequency limit so had to change time series to frequency = 24
+# Time is now is days
+san.antonio.ts.B = ts(san.antonio, frequency = 24, start = 0)
+# plot time series data
+plot.ts(san.antonio.ts.B, main = "Temperature (K) in San Antonio 2012-2017")
+```
+Look for trend using KPSS and ADF
+```{r}
+# KPSS test
+# p-value < 0.01 says data is non-stationary; there is trend
+kpss.test(san.antonio.ts.B, null = "Trend")
+# ADF test
+# p-value < 0.01 says data is stationary; there is no trend
+adf.test(san.antonio.ts.B)
+
+
+#san.antonio.diff.est = ndiffs(san.antonio.ts, alpha = 0.05, test = "adf")
+#san.antonio.diff.est
+# no differencing needed suggests going with ADF test = no trend
+
+#san.antonio.diff = diff(san.antonio.ts, differences = 1)
+#plot.ts(san.antonio.diff, main = "San Antonio Data Differenced = 1")
+```
+
+
+```{r}
+# finding the optimal parameters for error, trend, and seasonality
+san.antonio.ets = ets(san.antonio.ts.B, model = "ZZZ")
+# 'Z' means unknown component type so optimal model will be selected
+# other options are 'A' for additive
+# 'N' for none, 'M' for multiplicative
+summary(san.antonio.ets)
+# alpha = 0.9558
+# beta = 0.0000
+# gamma = 0.0095
+```
+
+```{r}
+checkresiduals(san.antonio.ets)
+```
+
+
+
+
+```{r}
+san.antonio.hw = HoltWinters(san.antonio.ts.B, alpha = 0.9558, beta = NULL, gamma = 0.0095, seasonal = 'additive')
+plot(san.antonio.hw)
+```
+
+```{r}
+library("forecast")
+# forecasting Holt Winters model
+san.antonio.hw.forecast = forecast(san.antonio.hw, h = 12)
+plot(san.antonio.hw.forecast, col = 'red')
+```
+
+
+
+
+
+
+### Unobserved Components Model
+```{r}
+# library for Unobserved Components Model
+library("rucm")
+
+san.antonio.ucm = ucm(san.antonio.ts.B ~ 0, data = san.antonio.ts.B)
+san.antonio.ucm
+a = predict(san.antonio.ucm, n.ahead = 12)
+
+```
+
